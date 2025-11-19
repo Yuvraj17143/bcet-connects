@@ -1,0 +1,84 @@
+backend/
+  package.json
+  .env
+  src/
+    server.js
+    app.js
+
+    config/
+      env.js
+      db.js
+
+    constants/
+      roles.js
+
+    middleware/
+      authMiddleware.js
+      roleMiddleware.js
+      errorHandler.js
+      validateRequest.js
+
+    utils/
+      ApiError.js
+      catchAsync.js
+      logger.js
+      responseHelper.js
+
+    modules/
+      auth/
+        auth.controller.js
+        auth.routes.js
+        auth.service.js
+        auth.validation.js
+      user/
+        user.model.js
+        user.controller.js
+        user.service.js
+        user.routes.js
+      feed/
+        feed.model.js
+        feed.controller.js
+        feed.service.js
+        feed.routes.js
+        feed.validation.js
+      jobs/
+        job.model.js
+        job.controller.js
+        job.service.js
+        job.routes.js
+        job.validation.js
+      mentorship/
+        mentorship.model.js
+        mentorship.controller.js
+        mentorship.service.js
+        mentorship.routes.js
+      events/
+        event.model.js
+        event.controller.js
+        event.service.js
+        event.routes.js
+      communities/
+        community.model.js
+        community.controller.js
+        community.service.js
+        community.routes.js
+      learning/
+        learning.controller.js
+        learning.service.js
+        learning.routes.js
+      donations/
+        donation.model.js
+        donation.controller.js
+        donation.service.js
+        donation.routes.js
+      analytics/
+        analytics.controller.js
+        analytics.routes.js
+      ai/
+        ai.controller.js
+        ai.routes.js
+
+    routes/
+      index.js
+
+
