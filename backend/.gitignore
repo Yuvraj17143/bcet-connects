@@ -43,3 +43,5 @@ dump/
 # Debug files
 *.pid
 *.seed
+node_modules/
+.env
