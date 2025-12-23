@@ -1,8 +1,9 @@
-// src/services/authService.js
+// frontend/src/services/authService.js
 import apiClient from "./apiClient.js";
 
 /**
  * Login user
+ * @param {Object} payload { email, password }
  */
 export const loginRequest = async ({ email, password }) => {
   try {
@@ -10,41 +11,48 @@ export const loginRequest = async ({ email, password }) => {
       email,
       password,
     });
-    return res.data; // { user, token }
+    return res.data; // { success, data: { user, token } }
   } catch (err) {
-    console.error("Login error:", err.response?.data || err.message);
+    console.error(
+      "Login error:",
+      err.response?.data?.message || err.message
+    );
     throw err;
   }
 };
 
 /**
- * Logout user (optional backend call)
- * If you later add /api/auth/logout, update this.
+ * Logout user
+ * (Frontend-only logout for now)
  */
 export const logoutRequest = async () => {
   try {
+    // If later you add backend logout:
     // await apiClient.post("/api/auth/logout");
     return true;
   } catch (err) {
-    console.error("Logout error:", err.response?.data || err.message);
+    console.error("Logout error:", err.message);
     return false;
   }
 };
 
 /**
- * Get currently logged-in user
+ * Get current logged-in user
+ * Token is automatically attached by apiClient interceptor
  */
 export const getCurrentUser = async () => {
   try {
     const res = await apiClient.get("/api/auth/me");
-    return res.data; // { user }
+    return res.data; // { success, data: { user } }
   } catch (err) {
-    console.error("Get current user error:", err.response?.data || err.message);
+    console.error(
+      "Get current user error:",
+      err.response?.data?.message || err.message
+    );
     throw err;
   }
 };
 
-// Default export
 const authService = {
   loginRequest,
   logoutRequest,
