@@ -62,7 +62,7 @@ export const AuthProvider = ({ children }) => {
 
       try {
         setLoading(true);
-        const res = await api.get("/api/auth/me");
+        const res = await api.get("/auth/me");
         const me = res?.data?.data ?? null;
 
         if (!mounted) return;
@@ -104,7 +104,7 @@ export const AuthProvider = ({ children }) => {
 
   /* -------------------- PUBLIC: login -------------------- */
   const login = useCallback(async (email, password) => {
-    const res = await api.post("/api/auth/login", { email, password });
+    const res = await api.post("/auth/login", { email, password });
     const payload = res?.data?.data ?? {};
 
     const authToken = payload.token;
@@ -124,14 +124,13 @@ export const AuthProvider = ({ children }) => {
   /* -------------------- PUBLIC: logout -------------------- */
   const logout = useCallback(async () => {
     try {
-      api.post("/api/auth/logout").catch(() => {});
+      api.post("/auth/logout").catch(() => {});
     } catch {}
     handleLogoutLocal();
   }, [handleLogoutLocal]);
 
-  /* -------------------- USER STATE HELPERS -------------------- */
+  /* -------------------- USER HELPERS -------------------- */
 
-  // Full replace (profile update, avatar upload)
   const setAuthUser = useCallback((nextUser) => {
     setUser(nextUser);
     setRole(nextUser?.role || "");
@@ -142,7 +141,6 @@ export const AuthProvider = ({ children }) => {
     } catch {}
   }, []);
 
-  // Partial update (safe patch)
   const patchUser = useCallback((patch) => {
     setUser((prev) => {
       const next = { ...(prev || {}), ...patch };
@@ -163,7 +161,7 @@ export const AuthProvider = ({ children }) => {
   /* -------------------- helpers -------------------- */
   const fetchUnreadCount = useCallback(async () => {
     try {
-      const res = await api.get("/api/notifications/unread-count");
+      const res = await api.get("/notifications/unread-count");
       return res?.data?.data?.unreadCount ?? 0;
     } catch {
       return 0;
