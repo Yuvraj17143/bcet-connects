@@ -13,18 +13,22 @@ export const getToken = () => {
   }
 };
 
-// ❗ Base URL MUST come from env in production
+/**
+ * IMPORTANT:
+ * Backend is mounted at /api
+ * So baseURL MUST end with /api
+ *
+ * Example:
+ * VITE_API_BASE_URL = https://bcet-connects.onrender.com
+ * Final requests → https://bcet-connects.onrender.com/api/...
+ */
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
 
-if (!API_BASE_URL) {
-  console.warn("⚠️ VITE_API_BASE_URL is not defined");
-}
-
 const api = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: `${API_BASE_URL.replace(/\/$/, "")}/api`, // 🔥 auto-fix trailing slash
   timeout: 15000,
-  withCredentials: true, // IMPORTANT for CORS + auth
+  withCredentials: true, // required for CORS + auth
   headers: {
     "Content-Type": "application/json",
   },
@@ -47,9 +51,9 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Network / CORS / server unreachable
+    // Network / server unreachable
     if (!error.response) {
-      console.error("❌ Network / Server error:", error.message);
+      console.error("❌ Network error:", error.message);
       return Promise.reject({
         message: "Network error. Please check your connection.",
         originalError: error,
@@ -58,7 +62,7 @@ api.interceptors.response.use(
 
     const status = error.response.status;
 
-    // Unauthorized → trigger centralized logout
+    // Centralized unauth handler (logout on 401)
     if (status === 401) {
       try {
         if (typeof api._onUnauthenticated === "function") {
