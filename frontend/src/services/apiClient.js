@@ -1,5 +1,9 @@
+// frontend/src/services/apiClient.js
 import axios from "axios";
 
+/**
+ * Read token safely
+ */
 export const getToken = () => {
   try {
     return localStorage.getItem("token") || "";
@@ -8,39 +12,72 @@ export const getToken = () => {
   }
 };
 
-// 🔐 SINGLE SOURCE OF TRUTH
-const BASE_URL = import.meta.env.VITE_API_BASE_URL;
+/**
+ * Base backend domain (NO /api here)
+ * Example: https://bcet-connects.onrender.com
+ */
+const RAW_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
 
-if (!BASE_URL) {
-  console.error("❌ VITE_API_BASE_URL is missing in Vercel env");
-}
+/**
+ * Normalize URL:
+ * - Ensures exactly ONE /api
+ * - Works for both "/auth/login" and "/api/auth/login"
+ */
+const normalizeUrl = (url) => {
+  if (!url) return "/api";
+
+  // remove starting slashes
+  let clean = url.replace(/^\/+/, "");
+
+  // remove duplicate api
+  if (clean.startsWith("api/")) {
+    clean = clean.replace(/^api\//, "");
+  }
+
+  return `/api/${clean}`;
+};
 
 const api = axios.create({
-  baseURL: `${BASE_URL.replace(/\/$/, "")}/api`, // 👈 ONLY HERE
+  baseURL: RAW_BASE_URL.replace(/\/$/, ""),
   timeout: 15000,
-  withCredentials: true,
   headers: {
     "Content-Type": "application/json",
   },
 });
 
-// Attach token automatically
-api.interceptors.request.use((config) => {
-  const token = getToken();
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+/* ---------------- Request Interceptor ---------------- */
+api.interceptors.request.use(
+  (config) => {
+    // 🔥 AUTO-FIX PATH
+    config.url = normalizeUrl(config.url);
 
-// Handle auth expiry
+    const token = getToken();
+    if (token) {
+      config.headers = config.headers || {};
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+
+    return config;
+  },
+  (err) => Promise.reject(err)
+);
+
+/* ---------------- Response Interceptor ---------------- */
 api.interceptors.response.use(
   (res) => res,
-  (err) => {
-    if (err.response?.status === 401 && api._onUnauthenticated) {
-      api._onUnauthenticated();
+  (error) => {
+    const status = error?.response?.status;
+
+    if (status === 401) {
+      try {
+        if (typeof api._onUnauthenticated === "function") {
+          api._onUnauthenticated();
+        }
+      } catch {}
     }
-    return Promise.reject(err);
+
+    return Promise.reject(error);
   }
 );
 
