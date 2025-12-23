@@ -1,56 +1,53 @@
 // frontend/src/services/authService.js
-import apiClient from "./apiClient.js";
+import api from "./apiClient";
 
 /**
- * Login user
- * @param {Object} payload { email, password }
+ * 🔥 Smart request helper
+ * Tries multiple route formats safely
  */
+const smartRequest = async (method, path, payload) => {
+  const pathsToTry = [
+    path,               // /auth/login
+    `/api${path}`,      // /api/auth/login (fallback)
+  ];
+
+  let lastError = null;
+
+  for (const p of pathsToTry) {
+    try {
+      const res = await api.request({
+        method,
+        url: p,
+        data: payload,
+      });
+      return res.data;
+    } catch (err) {
+      // only retry on 404
+      if (err?.response?.status === 404) {
+        lastError = err;
+        continue;
+      }
+      throw err; // other errors are real (401, 500)
+    }
+  }
+
+  throw lastError;
+};
+
+/* ---------------- LOGIN ---------------- */
 export const loginRequest = async ({ email, password }) => {
-  try {
-    const res = await apiClient.post("/auth/login", {
-      email,
-      password,
-    });
-    return res.data; // { success, data: { user, token } }
-  } catch (err) {
-    console.error(
-      "Login error:",
-      err.response?.data?.message || err.message
-    );
-    throw err;
-  }
+  return smartRequest("post", "/auth/login", { email, password });
 };
 
-/**
- * Logout user
- * (Frontend-only logout for now)
- */
+/* ---------------- LOGOUT ---------------- */
 export const logoutRequest = async () => {
-  try {
-    // Optional backend logout
-    // await apiClient.post("/auth/logout");
-    return true;
-  } catch (err) {
-    console.error("Logout error:", err.message);
-    return false;
-  }
+  // frontend-only logout (backend route optional)
+  return true;
 };
 
-/**
- * Get current logged-in user
- * Token is automatically attached by apiClient interceptor
- */
+/* ---------------- CURRENT USER ---------------- */
 export const getCurrentUser = async () => {
-  try {
-    const res = await apiClient.get("/auth/me");
-    return res.data; // { success, data: { user } }
-  } catch (err) {
-    console.error(
-      "Get current user error:",
-      err.response?.data?.message || err.message
-    );
-    throw err;
-  }
+  return smartRequest("get", "/auth/me");
 };
 
 const authService = {
