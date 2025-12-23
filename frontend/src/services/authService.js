@@ -1,41 +1,54 @@
 // src/services/authService.js
 import apiClient from "./apiClient.js";
 
-// Login
+/**
+ * Login user
+ */
 export const loginRequest = async ({ email, password }) => {
   try {
-    const res = await apiClient.post("/auth/login", { email, password });
-    return res.data; // { user: {}, token: "" }
+    const res = await apiClient.post("/api/auth/login", {
+      email,
+      password,
+    });
+    return res.data; // { user, token }
   } catch (err) {
-    console.error("Login error:", err.response?.data || err);
+    console.error("Login error:", err.response?.data || err.message);
     throw err;
   }
 };
 
-// Logout
+/**
+ * Logout user (optional backend call)
+ * If you later add /api/auth/logout, update this.
+ */
 export const logoutRequest = async () => {
   try {
-    // Optional backend logout call
+    // await apiClient.post("/api/auth/logout");
     return true;
   } catch (err) {
-    console.error("Logout error:", err);
+    console.error("Logout error:", err.response?.data || err.message);
     return false;
   }
 };
 
-// Get current user
-export const getCurrentUser = async (token) => {
+/**
+ * Get currently logged-in user
+ */
+export const getCurrentUser = async () => {
   try {
-    const res = await apiClient.get("/auth/me", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    return res.data; // { user: {} }
+    const res = await apiClient.get("/api/auth/me");
+    return res.data; // { user }
   } catch (err) {
-    console.error("Get current user error:", err.response?.data || err);
+    console.error("Get current user error:", err.response?.data || err.message);
     throw err;
   }
 };
 
-// Default export for easier import
-const authService = { loginRequest, logoutRequest, getCurrentUser };
+// Default export
+const authService = {
+  loginRequest,
+  logoutRequest,
+  getCurrentUser,
+};
+
 export default authService;
