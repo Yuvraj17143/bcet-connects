@@ -2,9 +2,8 @@
 import axios from "axios";
 
 /**
- * Simple helper that reads token from localStorage.
- * Using it here keeps apiClient independent from React contexts
- * (so server code/tests can still call it).
+ * Read auth token safely from localStorage.
+ * Keeps apiClient independent from React contexts.
  */
 export const getToken = () => {
   try {
@@ -14,45 +13,58 @@ export const getToken = () => {
   }
 };
 
+/**
+ * Create Axios instance
+ * NOTE:
+ * - baseURL should be ONLY backend origin
+ * - Do NOT include `/api` here
+ */
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api",
+  baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:5000",
   timeout: 15000,
   headers: {
     "Content-Type": "application/json",
   },
 });
 
-// Request interceptor - attach token if present
+/**
+ * Request Interceptor
+ * - Attaches JWT token (if present)
+ */
 api.interceptors.request.use(
   (config) => {
     const token = getToken();
+
     if (token) {
       config.headers = config.headers || {};
       config.headers.Authorization = `Bearer ${token}`;
     }
+
     return config;
   },
-  (err) => Promise.reject(err)
+  (error) => Promise.reject(error)
 );
 
 /**
- * Response interceptor. If you want centralized logout / refresh-token handling,
- * provide `onUnauthenticated` handler via `api._onUnauthenticated`.
- *
- * Example usage in AuthContext:
- *   api._onUnauthenticated = () => logout();
+ * Response Interceptor
+ * - Centralized 401 handling
+ * - Allows app-level logout via api._onUnauthenticated
  */
 api.interceptors.response.use(
-  (res) => res,
+  (response) => response,
   (error) => {
     const status = error?.response?.status;
+
     if (status === 401) {
-      try {
-        if (typeof api._onUnauthenticated === "function") api._onUnauthenticated();
-      } catch (e) {
-        // ignore
+      if (typeof api._onUnauthenticated === "function") {
+        try {
+          api._onUnauthenticated();
+        } catch {
+          // ignore logout errors
+        }
       }
     }
+
     return Promise.reject(error);
   }
 );
