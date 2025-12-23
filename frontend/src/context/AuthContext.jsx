@@ -1,16 +1,13 @@
-// src/context/AuthContext.jsx
-import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from "react";
-import api, { getToken as _getToken } from "@/services/apiClient";
-
-/**
- * AuthContext responsibilities:
- * - store user & token
- * - login / logout / update user
- * - auto-load user (GET /auth/me) when token present
- * - expose getToken() helper
- *
- * Keep socket creation out of this context (we'll use SocketContext).
- */
+// frontend/src/context/AuthContext.jsx
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  useCallback,
+} from "react";
+import api from "@/services/apiClient";
 
 const AuthContext = createContext(null);
 
@@ -23,59 +20,59 @@ export const AuthProvider = ({ children }) => {
     }
   });
 
-  const [token, setToken] = useState(() => localStorage.getItem("token") || "");
-  const [role, setRole] = useState(() => localStorage.getItem("role") || "");
-  const [loading, setLoading] = useState(Boolean(token)); // if token exists, try auto-load
+  const [token, setToken] = useState(() => {
+    try {
+      return localStorage.getItem("token") || "";
+    } catch {
+      return "";
+    }
+  });
+
+  const [role, setRole] = useState(() => {
+    try {
+      return localStorage.getItem("role") || "";
+    } catch {
+      return "";
+    }
+  });
+
+  const [loading, setLoading] = useState(Boolean(token));
   const [authReady, setAuthReady] = useState(false);
 
-  // Attach centralized 401 handler to api client
+  /* -------------------- axios 401 hook -------------------- */
   useEffect(() => {
     api._onUnauthenticated = () => {
-      // simple default: clear local auth — consumer can override by subscribing
       handleLogoutLocal();
     };
     return () => {
       api._onUnauthenticated = undefined;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Ensure axios header updated whenever token changes
-  useEffect(() => {
-    if (token) {
-      api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-    } else {
-      delete api.defaults.headers.common["Authorization"];
-    }
-  }, [token]);
-
-  // Auto-load / validate token
+  /* -------------------- auto validate token -------------------- */
   useEffect(() => {
     let mounted = true;
-    const init = async () => {
+
+    const initAuth = async () => {
       if (!token) {
         setLoading(false);
         setAuthReady(true);
         return;
       }
+
       try {
         setLoading(true);
-        const res = await api.get("/auth/me"); // expects { data: { ...user } }
+        const res = await api.get("/api/auth/me");
         const me = res?.data?.data ?? null;
+
         if (!mounted) return;
+
         if (me) {
-          setUser(me);
-          setRole(me.role || "");
-          try {
-            localStorage.setItem("user", JSON.stringify(me));
-            localStorage.setItem("role", me.role || "");
-          } catch {}
+          setAuthUser(me);
         } else {
-          // invalid token
           handleLogoutLocal();
         }
-      } catch (err) {
-        // token invalid -> clear
+      } catch {
         handleLogoutLocal();
       } finally {
         if (mounted) {
@@ -84,74 +81,69 @@ export const AuthProvider = ({ children }) => {
         }
       }
     };
-    init();
+
+    initAuth();
     return () => {
       mounted = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
-  // local helper used by this provider to clear auth synchronously
+  /* -------------------- INTERNAL LOGOUT -------------------- */
   const handleLogoutLocal = useCallback(() => {
     setToken("");
     setUser(null);
     setRole("");
     setAuthReady(true);
-    // clear storage
+
     try {
       localStorage.removeItem("token");
       localStorage.removeItem("user");
       localStorage.removeItem("role");
     } catch {}
-    // clear axios header
-    delete api.defaults.headers.common["Authorization"];
   }, []);
 
-  // PUBLIC: login
+  /* -------------------- PUBLIC: login -------------------- */
   const login = useCallback(async (email, password) => {
-    const res = await api.post("/auth/login", { email, password });
-    // Accept multiple common shapes:
-    // 1) { data: { user, token } }
-    // 2) { data: { token, user } }
-    // 3) { data: { ... } } (fallback)
-    const payload = res?.data?.data ?? res?.data ?? {};
-    const authToken = payload.token || res?.data?.token || "";
-    const authUser = payload.user || (payload.id ? payload : null);
+    const res = await api.post("/api/auth/login", { email, password });
+    const payload = res?.data?.data ?? {};
 
-    if (!authToken) {
-      throw new Error("Authentication token missing from server response");
+    const authToken = payload.token;
+    const authUser = payload.user;
+
+    if (!authToken || !authUser) {
+      throw new Error("Invalid login response");
     }
 
-    // persist token & user
     setToken(authToken);
     localStorage.setItem("token", authToken);
-
-    if (authUser) {
-      setUser(authUser);
-      setRole(authUser.role || "");
-      try {
-        localStorage.setItem("user", JSON.stringify(authUser));
-        localStorage.setItem("role", authUser.role || "");
-      } catch {}
-    }
-
-    // attach axios header
-    api.defaults.headers.common["Authorization"] = `Bearer ${authToken}`;
+    setAuthUser(authUser);
 
     return authUser;
   }, []);
 
-  // PUBLIC: logout (calls server but doesn't wait)
+  /* -------------------- PUBLIC: logout -------------------- */
   const logout = useCallback(async () => {
     try {
-      // fire and forget, avoid blocking
-      api.post("/auth/logout").catch(() => {});
+      api.post("/api/auth/logout").catch(() => {});
     } catch {}
     handleLogoutLocal();
   }, [handleLogoutLocal]);
 
-  // PUBLIC: updateUser (local patch & persist)
-  const updateUser = useCallback((patch) => {
+  /* -------------------- USER STATE HELPERS -------------------- */
+
+  // Full replace (profile update, avatar upload)
+  const setAuthUser = useCallback((nextUser) => {
+    setUser(nextUser);
+    setRole(nextUser?.role || "");
+
+    try {
+      localStorage.setItem("user", JSON.stringify(nextUser));
+      localStorage.setItem("role", nextUser?.role || "");
+    } catch {}
+  }, []);
+
+  // Partial update (safe patch)
+  const patchUser = useCallback((patch) => {
     setUser((prev) => {
       const next = { ...(prev || {}), ...patch };
       try {
@@ -159,6 +151,7 @@ export const AuthProvider = ({ children }) => {
       } catch {}
       return next;
     });
+
     if (patch?.role) {
       setRole(patch.role);
       try {
@@ -167,19 +160,14 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  // PUBLIC: fetch unread count - optional helper (can be used by UI)
+  /* -------------------- helpers -------------------- */
   const fetchUnreadCount = useCallback(async () => {
     try {
-      const res = await api.get("/notifications/unread-count");
+      const res = await api.get("/api/notifications/unread-count");
       return res?.data?.data?.unreadCount ?? 0;
     } catch {
       return 0;
     }
-  }, []);
-
-  // expose a simple getToken helper for other non-React modules
-  const getToken = useCallback(() => {
-    return _getToken();
   }, []);
 
   const value = useMemo(
@@ -191,16 +179,25 @@ export const AuthProvider = ({ children }) => {
       authReady,
       login,
       logout,
-      updateUser,
+      setAuthUser,
+      patchUser,
       fetchUnreadCount,
-      getToken,
     }),
-    [user, token, role, loading, authReady, login, logout, updateUser, fetchUnreadCount, getToken]
+    [
+      user,
+      token,
+      role,
+      loading,
+      authReady,
+      login,
+      logout,
+      setAuthUser,
+      patchUser,
+      fetchUnreadCount,
+    ]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-export const useAuth = () => {
-  return useContext(AuthContext);
-};
+export const useAuth = () => useContext(AuthContext);
