@@ -7,7 +7,7 @@ import apiClient from "./apiClient.js";
  */
 export const loginRequest = async ({ email, password }) => {
   try {
-    const res = await apiClient.post("/api/auth/login", {
+    const res = await apiClient.post("/auth/login", {
       email,
       password,
     });
@@ -27,8 +27,8 @@ export const loginRequest = async ({ email, password }) => {
  */
 export const logoutRequest = async () => {
   try {
-    // If later you add backend logout:
-    // await apiClient.post("/api/auth/logout");
+    // Optional backend logout
+    // await apiClient.post("/auth/logout");
     return true;
   } catch (err) {
     console.error("Logout error:", err.message);
@@ -42,7 +42,7 @@ export const logoutRequest = async () => {
  */
 export const getCurrentUser = async () => {
   try {
-    const res = await apiClient.get("/api/auth/me");
+    const res = await apiClient.get("/auth/me");
     return res.data; // { success, data: { user } }
   } catch (err) {
     console.error(
