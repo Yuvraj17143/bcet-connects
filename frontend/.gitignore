@@ -39,3 +39,5 @@ components.json
 
 # Generated files
 *.tsbuildinfo
+node_modules/
+.env
