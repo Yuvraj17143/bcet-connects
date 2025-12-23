@@ -1,33 +1,22 @@
-// frontend/src/services/apiClient.js
 import axios from "axios";
 
-/**
- * Safely read auth token from localStorage
- */
 export const getToken = () => {
   try {
-    if (typeof window === "undefined") return "";
     return localStorage.getItem("token") || "";
   } catch {
     return "";
   }
 };
 
-/**
- * Vercel MUST provide this at build time
- */
-const RAW_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+// 🔐 SINGLE SOURCE OF TRUTH
+const BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-// 🔥 HARD FAIL (so bug kabhi silent na rahe)
-if (!RAW_BASE_URL) {
-  console.error(
-    "❌ VITE_API_BASE_URL is missing. Set it in Vercel Environment Variables."
-  );
+if (!BASE_URL) {
+  console.error("❌ VITE_API_BASE_URL is missing in Vercel env");
 }
 
 const api = axios.create({
-  // ALWAYS force /api
-  baseURL: `${(RAW_BASE_URL || "http://localhost:5000").replace(/\/$/, "")}/api`,
+  baseURL: `${BASE_URL.replace(/\/$/, "")}/api`, // 👈 ONLY HERE
   timeout: 15000,
   withCredentials: true,
   headers: {
@@ -35,37 +24,23 @@ const api = axios.create({
   },
 });
 
-/* ---------------- Request Interceptor ---------------- */
-api.interceptors.request.use(
-  (config) => {
-    const token = getToken();
-    if (token) {
-      config.headers = config.headers || {};
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
+// Attach token automatically
+api.interceptors.request.use((config) => {
+  const token = getToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
 
-/* ---------------- Response Interceptor ---------------- */
+// Handle auth expiry
 api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (!error.response) {
-      console.error("❌ Network error:", error.message);
-      return Promise.reject(error);
+  (res) => res,
+  (err) => {
+    if (err.response?.status === 401 && api._onUnauthenticated) {
+      api._onUnauthenticated();
     }
-
-    if (error.response.status === 401) {
-      try {
-        if (typeof api._onUnauthenticated === "function") {
-          api._onUnauthenticated();
-        }
-      } catch {}
-    }
-
-    return Promise.reject(error);
+    return Promise.reject(err);
   }
 );
 
