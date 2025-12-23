@@ -13,44 +13,52 @@ export const getToken = () => {
 };
 
 /**
- * Base backend domain (NO /api here)
+ * Base backend domain ONLY (no /api)
  * Example: https://bcet-connects.onrender.com
  */
-const RAW_BASE_URL =
+const BASE_DOMAIN =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
 
 /**
- * Normalize URL:
- * - Ensures exactly ONE /api
- * - Works for both "/auth/login" and "/api/auth/login"
+ * Normalize any API path to backend format
+ *
+ * Examples:
+ *  /auth/login        -> /api/auth/login
+ *  auth/login         -> /api/auth/login
+ *  /api/auth/login   -> /api/auth/login
+ *  api/auth/login    -> /api/auth/login
+ *  /users/me         -> /api/users/me
  */
-const normalizeUrl = (url) => {
-  if (!url) return "/api";
+const normalizeApiPath = (url = "") => {
+  let path = url.trim();
 
-  // remove starting slashes
-  let clean = url.replace(/^\/+/, "");
+  // remove protocol/full url if accidentally passed
+  path = path.replace(/^https?:\/\/[^/]+/i, "");
 
-  // remove duplicate api
-  if (clean.startsWith("api/")) {
-    clean = clean.replace(/^api\//, "");
+  // remove leading slashes
+  path = path.replace(/^\/+/, "");
+
+  // remove existing api prefix
+  if (path.startsWith("api/")) {
+    path = path.replace(/^api\//, "");
   }
 
-  return `/api/${clean}`;
+  return `/api/${path}`;
 };
 
 const api = axios.create({
-  baseURL: RAW_BASE_URL.replace(/\/$/, ""),
+  baseURL: BASE_DOMAIN.replace(/\/$/, ""),
   timeout: 15000,
   headers: {
     "Content-Type": "application/json",
   },
 });
 
-/* ---------------- Request Interceptor ---------------- */
+/* ---------------- REQUEST INTERCEPTOR ---------------- */
 api.interceptors.request.use(
   (config) => {
-    // 🔥 AUTO-FIX PATH
-    config.url = normalizeUrl(config.url);
+    // 🔥 FORCE PATH NORMALIZATION
+    config.url = normalizeApiPath(config.url || "");
 
     const token = getToken();
     if (token) {
@@ -60,20 +68,18 @@ api.interceptors.request.use(
 
     return config;
   },
-  (err) => Promise.reject(err)
+  (error) => Promise.reject(error)
 );
 
-/* ---------------- Response Interceptor ---------------- */
+/* ---------------- RESPONSE INTERCEPTOR ---------------- */
 api.interceptors.response.use(
-  (res) => res,
+  (response) => response,
   (error) => {
     const status = error?.response?.status;
 
-    if (status === 401) {
+    if (status === 401 && typeof api._onUnauthenticated === "function") {
       try {
-        if (typeof api._onUnauthenticated === "function") {
-          api._onUnauthenticated();
-        }
+        api._onUnauthenticated();
       } catch {}
     }
 
