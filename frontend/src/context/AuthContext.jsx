@@ -1,4 +1,4 @@
-// frontend/src/context/AuthContext.jsx
+// src/context/AuthContext.jsx
 import React, {
   createContext,
   useContext,
@@ -12,6 +12,7 @@ import api from "@/services/apiClient";
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
+  /* ---------------- STATE ---------------- */
   const [user, setUser] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem("user")) || null;
@@ -39,7 +40,7 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(Boolean(token));
   const [authReady, setAuthReady] = useState(false);
 
-  /* ---------------- axios 401 global hook ---------------- */
+  /* ---------------- GLOBAL 401 HANDLER ---------------- */
   useEffect(() => {
     api._onUnauthenticated = () => {
       hardLogout();
@@ -49,11 +50,11 @@ export const AuthProvider = ({ children }) => {
     };
   }, []);
 
-  /* ---------------- validate token on refresh ---------------- */
+  /* ---------------- TOKEN VALIDATION ON REFRESH ---------------- */
   useEffect(() => {
     let active = true;
 
-    const validate = async () => {
+    const validateToken = async () => {
       if (!token) {
         setLoading(false);
         setAuthReady(true);
@@ -62,8 +63,6 @@ export const AuthProvider = ({ children }) => {
 
       try {
         setLoading(true);
-
-        // 🔥 NEVER hardcode /api here
         const res = await api.get("/auth/me");
         const me = res?.data?.data ?? null;
 
@@ -84,13 +83,13 @@ export const AuthProvider = ({ children }) => {
       }
     };
 
-    validate();
+    validateToken();
     return () => {
       active = false;
     };
   }, [token]);
 
-  /* ---------------- internal logout ---------------- */
+  /* ---------------- INTERNAL LOGOUT ---------------- */
   const hardLogout = useCallback(() => {
     setUser(null);
     setToken("");
@@ -104,12 +103,11 @@ export const AuthProvider = ({ children }) => {
     } catch {}
   }, []);
 
-  /* ---------------- login ---------------- */
+  /* ---------------- LOGIN ---------------- */
   const login = useCallback(async (email, password) => {
-    // 🔥 ONLY relative path
     const res = await api.post("/auth/login", { email, password });
-
     const payload = res?.data?.data;
+
     if (!payload?.token || !payload?.user) {
       throw new Error("Invalid login response");
     }
@@ -121,13 +119,12 @@ export const AuthProvider = ({ children }) => {
     return payload.user;
   }, []);
 
-  /* ---------------- logout (frontend only) ---------------- */
+  /* ---------------- LOGOUT (FRONTEND ONLY) ---------------- */
   const logout = useCallback(() => {
-    // ❌ backend logout route exist nahi karta → don't call it
     hardLogout();
   }, [hardLogout]);
 
-  /* ---------------- user helpers ---------------- */
+  /* ---------------- USER HELPERS ---------------- */
   const setAuthUser = useCallback((nextUser) => {
     setUser(nextUser);
     setRole(nextUser?.role || "");
@@ -155,7 +152,7 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  /* ---------------- helpers ---------------- */
+  /* ---------------- HELPERS ---------------- */
   const fetchUnreadCount = useCallback(async () => {
     try {
       const res = await api.get("/notifications/unread-count");
@@ -165,6 +162,7 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
+  /* ---------------- CONTEXT VALUE ---------------- */
   const value = useMemo(
     () => ({
       user,
