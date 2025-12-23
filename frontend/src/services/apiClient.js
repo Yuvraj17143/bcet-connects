@@ -14,21 +14,22 @@ export const getToken = () => {
 };
 
 /**
- * IMPORTANT:
- * Backend is mounted at /api
- * So baseURL MUST end with /api
- *
- * Example:
- * VITE_API_BASE_URL = https://bcet-connects.onrender.com
- * Final requests → https://bcet-connects.onrender.com/api/...
+ * Vercel MUST provide this at build time
  */
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
+const RAW_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
+// 🔥 HARD FAIL (so bug kabhi silent na rahe)
+if (!RAW_BASE_URL) {
+  console.error(
+    "❌ VITE_API_BASE_URL is missing. Set it in Vercel Environment Variables."
+  );
+}
 
 const api = axios.create({
-  baseURL: `${API_BASE_URL.replace(/\/$/, "")}/api`, // 🔥 auto-fix trailing slash
+  // ALWAYS force /api
+  baseURL: `${(RAW_BASE_URL || "http://localhost:5000").replace(/\/$/, "")}/api`,
   timeout: 15000,
-  withCredentials: true, // required for CORS + auth
+  withCredentials: true,
   headers: {
     "Content-Type": "application/json",
   },
@@ -51,26 +52,17 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Network / server unreachable
     if (!error.response) {
       console.error("❌ Network error:", error.message);
-      return Promise.reject({
-        message: "Network error. Please check your connection.",
-        originalError: error,
-      });
+      return Promise.reject(error);
     }
 
-    const status = error.response.status;
-
-    // Centralized unauth handler (logout on 401)
-    if (status === 401) {
+    if (error.response.status === 401) {
       try {
         if (typeof api._onUnauthenticated === "function") {
           api._onUnauthenticated();
         }
-      } catch {
-        // ignore
-      }
+      } catch {}
     }
 
     return Promise.reject(error);
