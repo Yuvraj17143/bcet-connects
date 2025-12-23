@@ -1,67 +1,71 @@
-// src/services/apiClient.js
+// frontend/src/services/apiClient.js
 import axios from "axios";
 
 /**
- * Read auth token safely from localStorage.
- * Keeps apiClient independent from React contexts.
+ * Safely read auth token from localStorage
  */
 export const getToken = () => {
   try {
+    if (typeof window === "undefined") return "";
     return localStorage.getItem("token") || "";
   } catch {
     return "";
   }
 };
 
-/**
- * Create Axios instance
- * NOTE:
- * - baseURL should be ONLY backend origin
- * - Do NOT include `/api` here
- */
+// ❗ Base URL MUST come from env in production
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
+
+if (!API_BASE_URL) {
+  console.warn("⚠️ VITE_API_BASE_URL is not defined");
+}
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:5000",
+  baseURL: API_BASE_URL,
   timeout: 15000,
+  withCredentials: true, // IMPORTANT for CORS + auth
   headers: {
     "Content-Type": "application/json",
   },
 });
 
-/**
- * Request Interceptor
- * - Attaches JWT token (if present)
- */
+/* ---------------- Request Interceptor ---------------- */
 api.interceptors.request.use(
   (config) => {
     const token = getToken();
-
     if (token) {
       config.headers = config.headers || {};
       config.headers.Authorization = `Bearer ${token}`;
     }
-
     return config;
   },
   (error) => Promise.reject(error)
 );
 
-/**
- * Response Interceptor
- * - Centralized 401 handling
- * - Allows app-level logout via api._onUnauthenticated
- */
+/* ---------------- Response Interceptor ---------------- */
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    const status = error?.response?.status;
+    // Network / CORS / server unreachable
+    if (!error.response) {
+      console.error("❌ Network / Server error:", error.message);
+      return Promise.reject({
+        message: "Network error. Please check your connection.",
+        originalError: error,
+      });
+    }
 
+    const status = error.response.status;
+
+    // Unauthorized → trigger centralized logout
     if (status === 401) {
-      if (typeof api._onUnauthenticated === "function") {
-        try {
+      try {
+        if (typeof api._onUnauthenticated === "function") {
           api._onUnauthenticated();
-        } catch {
-          // ignore logout errors
         }
+      } catch {
+        // ignore
       }
     }
 
