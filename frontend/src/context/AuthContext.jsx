@@ -39,21 +39,21 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(Boolean(token));
   const [authReady, setAuthReady] = useState(false);
 
-  /* -------------------- axios 401 hook -------------------- */
+  /* ---------------- axios 401 global hook ---------------- */
   useEffect(() => {
     api._onUnauthenticated = () => {
-      handleLogoutLocal();
+      hardLogout();
     };
     return () => {
       api._onUnauthenticated = undefined;
     };
   }, []);
 
-  /* -------------------- auto validate token -------------------- */
+  /* ---------------- validate token on refresh ---------------- */
   useEffect(() => {
-    let mounted = true;
+    let active = true;
 
-    const initAuth = async () => {
+    const validate = async () => {
       if (!token) {
         setLoading(false);
         setAuthReady(true);
@@ -62,36 +62,38 @@ export const AuthProvider = ({ children }) => {
 
       try {
         setLoading(true);
+
+        // 🔥 NEVER hardcode /api here
         const res = await api.get("/auth/me");
         const me = res?.data?.data ?? null;
 
-        if (!mounted) return;
+        if (!active) return;
 
         if (me) {
           setAuthUser(me);
         } else {
-          handleLogoutLocal();
+          hardLogout();
         }
       } catch {
-        handleLogoutLocal();
+        hardLogout();
       } finally {
-        if (mounted) {
+        if (active) {
           setLoading(false);
           setAuthReady(true);
         }
       }
     };
 
-    initAuth();
+    validate();
     return () => {
-      mounted = false;
+      active = false;
     };
   }, [token]);
 
-  /* -------------------- INTERNAL LOGOUT -------------------- */
-  const handleLogoutLocal = useCallback(() => {
-    setToken("");
+  /* ---------------- internal logout ---------------- */
+  const hardLogout = useCallback(() => {
     setUser(null);
+    setToken("");
     setRole("");
     setAuthReady(true);
 
@@ -102,35 +104,30 @@ export const AuthProvider = ({ children }) => {
     } catch {}
   }, []);
 
-  /* -------------------- PUBLIC: login -------------------- */
+  /* ---------------- login ---------------- */
   const login = useCallback(async (email, password) => {
+    // 🔥 ONLY relative path
     const res = await api.post("/auth/login", { email, password });
-    const payload = res?.data?.data ?? {};
 
-    const authToken = payload.token;
-    const authUser = payload.user;
-
-    if (!authToken || !authUser) {
+    const payload = res?.data?.data;
+    if (!payload?.token || !payload?.user) {
       throw new Error("Invalid login response");
     }
 
-    setToken(authToken);
-    localStorage.setItem("token", authToken);
-    setAuthUser(authUser);
+    setToken(payload.token);
+    localStorage.setItem("token", payload.token);
+    setAuthUser(payload.user);
 
-    return authUser;
+    return payload.user;
   }, []);
 
-  /* -------------------- PUBLIC: logout -------------------- */
-  const logout = useCallback(async () => {
-    try {
-      api.post("/auth/logout").catch(() => {});
-    } catch {}
-    handleLogoutLocal();
-  }, [handleLogoutLocal]);
+  /* ---------------- logout (frontend only) ---------------- */
+  const logout = useCallback(() => {
+    // ❌ backend logout route exist nahi karta → don't call it
+    hardLogout();
+  }, [hardLogout]);
 
-  /* -------------------- USER HELPERS -------------------- */
-
+  /* ---------------- user helpers ---------------- */
   const setAuthUser = useCallback((nextUser) => {
     setUser(nextUser);
     setRole(nextUser?.role || "");
@@ -158,7 +155,7 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  /* -------------------- helpers -------------------- */
+  /* ---------------- helpers ---------------- */
   const fetchUnreadCount = useCallback(async () => {
     try {
       const res = await api.get("/notifications/unread-count");
