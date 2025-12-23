@@ -20,18 +20,18 @@ app.use(helmet());
 /* ---------------------------- CORS (FIXED) ------------------------------- */
 /**
  * Normalize allowed origins:
- * - remove trailing slash
- * - allow comma-separated CLIENT_URL
+ * - supports comma-separated CLIENT_URL
+ * - removes trailing slash
  */
 const ALLOWED_ORIGINS = (process.env.CLIENT_URL || "http://localhost:5173")
   .split(",")
-  .map((url) => url.trim().replace(/\/$/, "")) // remove trailing slash
+  .map((url) => url.trim().replace(/\/$/, ""))
   .filter(Boolean);
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      // allow server-to-server / curl / mobile apps
+      // Allow server-to-server, curl, Postman, mobile apps
       if (!origin) return callback(null, true);
 
       const normalizedOrigin = origin.replace(/\/$/, "");
@@ -40,8 +40,7 @@ app.use(
         return callback(null, true);
       }
 
-      // IMPORTANT:
-      // Do NOT throw error → browser will handle CORS cleanly
+      // ❗ Do NOT throw error → browser handles CORS cleanly
       return callback(null, false);
     },
     credentials: true,
@@ -67,7 +66,7 @@ if (process.env.NODE_ENV !== "production") {
 /* ------------------------------- Health --------------------------------- */
 app.get("/", (req, res) => {
   res.status(200).json({
-    status: "ok",
+    success: true,
     service: "bcet-connect-api",
     port: PORT || process.env.PORT || 5000,
   });
